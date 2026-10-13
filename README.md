@@ -245,10 +245,10 @@ on:
       - ".gitignore"
       - "LICENSE"
 
-# Cancels older running reviews when a developer pushes a new commit quickly
+# Cancels older running reviews on PRs to save tokens/minutes, but queues safely on main branch
 concurrency:
   group: reviewground-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 ```
 
 > [!TIP]
@@ -286,10 +286,10 @@ permissions:
   actions: read
   checks: write # Enables Check Run pass/fail gate
 
-# Cancels older running reviews when a developer pushes a new commit quickly
+# Cancels older running reviews on PRs, but queues safely on main branch
 concurrency:
   group: reviewground-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   review:
@@ -443,9 +443,10 @@ permissions:
   actions: read # Required to fetch stage durations
   checks: write # Required for Check Run gate
 
+# Cancels older running reviews on PRs, but queues safely on main branch
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   gitleaks:
