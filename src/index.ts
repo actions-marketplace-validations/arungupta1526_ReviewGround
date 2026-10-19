@@ -64,7 +64,15 @@ async function run(): Promise<void> {
     const token = getOptionalInput('github-token', ['GITHUB_TOKEN', 'GH_TOKEN']);
     const repo = getOptionalInput('repo', ['GITHUB_REPOSITORY', 'REPO_FULL_NAME']);
     const prNumber = resolvePrNumber();
-    const mode = (getOptionalInput('mode', ['REVIEWGROUND_MODE', 'MODE']) || 'all').toLowerCase();
+    const rawMode = getOptionalInput('mode', ['REVIEWGROUND_MODE', 'MODE']);
+    const isIssueComment = process.env.GITHUB_EVENT_NAME === 'issue_comment';
+    const mode = (
+      rawMode && rawMode.toLowerCase() !== 'all'
+        ? rawMode
+        : isIssueComment
+          ? 'slash-command'
+          : rawMode || 'all'
+    ).toLowerCase();
 
     console.log('🚀 ReviewGround GitHub Action Initializing...');
     console.log(`- Repository: ${repo || 'local'}`);

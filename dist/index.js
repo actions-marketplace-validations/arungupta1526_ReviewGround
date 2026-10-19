@@ -20261,7 +20261,8 @@ async function verifyNpmPackage(name, version2) {
   const base = { name, requestedVersion: version2, registry: "npm", verified: false, note: "" };
   try {
     const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/${encodeURIComponent(version2)}`, {
-      signal: AbortSignal.timeout(4e3)
+      signal: AbortSignal.timeout(5e3),
+      headers: { "User-Agent": "ReviewGround-CI-Reviewer/1.3.0" }
     });
     if (res.ok) {
       base.verified = true;
@@ -20269,7 +20270,8 @@ async function verifyNpmPackage(name, version2) {
       return base;
     }
     const latestRes = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/latest`, {
-      signal: AbortSignal.timeout(4e3)
+      signal: AbortSignal.timeout(5e3),
+      headers: { "User-Agent": "ReviewGround-CI-Reviewer/1.3.0" }
     });
     if (latestRes.ok) {
       const info = await latestRes.json();
@@ -21372,6 +21374,88 @@ Existing Project Structure (Relevant Directories):
 `;
 }
 
+// src/utils/actionableSummary.ts
+function extractFindingCounts(reviewText, inlineCount = 0) {
+  const blockers = (reviewText.match(/🚨\s*\*\*\[BLOCKER\]\*\*/gi) || []).length;
+  const warnings = (reviewText.match(/⚠️\s*\*\*\[WARNING\]\*\*/gi) || []).length;
+  return {
+    blockers,
+    warnings,
+    suggestions: inlineCount
+  };
+}
+function generateActionableHeader(counts) {
+  const parts = [];
+  if (counts.blockers > 0) {
+    parts.push(`\u{1F6A8} **${counts.blockers} Blocker${counts.blockers > 1 ? "s" : ""}**`);
+  }
+  if (counts.warnings > 0) {
+    parts.push(`\u26A0\uFE0F **${counts.warnings} Warning${counts.warnings > 1 ? "s" : ""}**`);
+  }
+  if (counts.suggestions > 0) {
+    parts.push(`\u{1F4A1} **${counts.suggestions} Committable Suggestion${counts.suggestions > 1 ? "s" : ""}**`);
+  }
+  if (parts.length === 0) {
+    return `> \u2705 **All checks passed** \xB7 No blocker or warning issues detected \xB7 Changes look clean!`;
+  }
+  return `> ${parts.join(" \xB7 ")} \xB7 \u{1F4AC} Reply \`@reviewground fix\` to auto-patch`;
+}
+function generateAgentPromptBox(inlineSuggestions, counts) {
+  if (inlineSuggestions.length === 0 && counts.blockers === 0 && counts.warnings === 0) {
+    return "";
+  }
+  const items = inlineSuggestions.map(
+    (s, idx) => {
+      const sanitized = s.suggestion.replace(/```/g, "'''").replace(/<\/?details>/gi, "").trim();
+      return `${idx + 1}. In \`${s.path}\` line ${s.line}:
+Apply fix:
+\`\`\`
+${sanitized}
+\`\`\``;
+    }
+  ).join("\n\n");
+  const content = items ? `ReviewGround detected actionable issues on this PR. Please apply the following code fixes:
+
+${items}
+
+Keep modifications minimal, adhere to AGENTS.md conventions, and run tests.` : `ReviewGround flagged ${counts.blockers} blocker(s) and ${counts.warnings} warning(s) on this PR. Please review the findings above, resolve the root cause, and verify with tests.`;
+  return `
+
+<details>
+<summary>\u{1F916} Prompt for AI Coding Agents (Antigravity / Cursor / Claude)</summary>
+
+\`\`\`
+${content}
+\`\`\`
+
+</details>`;
+}
+function generateReviewScopeBox(options) {
+  const bullets = [];
+  if (options.filesAnalyzed && options.filesAnalyzed.length > 0) {
+    const list = options.filesAnalyzed.slice(0, 8).map((f) => `\`${f}\``).join(", ");
+    const more = options.filesAnalyzed.length > 8 ? ` *(+${options.filesAnalyzed.length - 8} more)*` : "";
+    bullets.push(`* **Files Analyzed (P0/P1):** ${list}${more}`);
+  }
+  if (options.filesSkipped && options.filesSkipped.length > 0) {
+    const list = options.filesSkipped.slice(0, 8).map((f) => `\`${f}\``).join(", ");
+    const more = options.filesSkipped.length > 8 ? ` *(+${options.filesSkipped.length - 8} more)*` : "";
+    bullets.push(`* **Files Budget-Skipped (P2/Lockfiles):** ${list}${more}`);
+  }
+  if (options.registryGroundingUsed) {
+    bullets.push(`* **Registry Verification:** Live npm / PyPI registry grounding verified`);
+  }
+  if (bullets.length === 0) return "";
+  return `
+
+<details>
+<summary>\u2139\uFE0F Review Scope & File Distribution</summary>
+
+${bullets.join("\n")}
+
+</details>`;
+}
+
 // src/github/comments.ts
 var import_child_process = require("child_process");
 
@@ -22026,6 +22110,7 @@ __export(util_exports, {
   required: () => required,
   safeExtend: () => safeExtend,
   shallowClone: () => shallowClone,
+  sizeCaps: () => sizeCaps,
   slugify: () => slugify,
   stringifyPrimitive: () => stringifyPrimitive,
   toZod: () => toZod,
@@ -22544,6 +22629,18 @@ function prefixIssues(path2, issues) {
 }
 function unwrapMessage(message) {
   return typeof message === "string" ? message : message?.message;
+}
+function sizeCaps(defChecks) {
+  const caps = [];
+  for (const ch of defChecks ?? []) {
+    const d = ch._zod.def;
+    if (!/_(length|size)$|_equals$/.test(d.check))
+      break;
+    const max = d.maximum ?? d.length ?? d.size;
+    if (max >= 0)
+      caps.push([max, ch]);
+  }
+  return caps;
 }
 function attachSchema(issues, start, inst) {
   var _a3;
@@ -23965,7 +24062,7 @@ ${content.join("\n")}
 var version = {
   major: 4,
   minor: 6,
-  patch: 5
+  patch: 7
 };
 
 // node_modules/zod/v4/core/schemas.js
@@ -24721,6 +24818,31 @@ var $ZodDate = /* @__PURE__ */ $constructor("$ZodDate", (inst, def) => {
     return payload;
   };
 });
+function capSize(inst, size) {
+  const caps = sizeCaps(inst._zod.def.checks);
+  if (!caps.length)
+    return;
+  const cap = Math.min(...caps.map((c) => c[0]));
+  const parse3 = inst._zod.parse;
+  inst._zod.parse = (payload, ctx) => {
+    const n = size(payload.value);
+    if (n > cap && !ctx?.skipChecks && ctx?.direction !== "backward") {
+      for (const [max, ch] of sizeCaps(inst._zod.def.checks)) {
+        if (n > max && ch._zod.def.when(payload)) {
+          const start = payload.issues.length;
+          ch._zod.check(payload);
+          payload.issues[start].continue = false;
+          attachSchema(payload.issues, start, inst);
+          return payload;
+        }
+      }
+    }
+    return parse3(payload, ctx);
+  };
+}
+var arraySize = (input2) => Array.isArray(input2) ? input2.length : -1;
+var mapSize = (input2) => input2 instanceof Map ? input2.size : -1;
+var setSize = (input2) => input2 instanceof Set ? input2.size : -1;
 function handleArrayResult(result, final, index) {
   if (result.issues.length) {
     final.issues.push(...prefixIssues(index, result.issues));
@@ -24764,6 +24886,7 @@ var $ZodArray = /* @__PURE__ */ $constructor("$ZodArray", (inst, def) => {
     }
     return payload;
   };
+  capSize(inst, arraySize);
 });
 function handlePropertyResult(result, final, key, input2, optin, optout) {
   const isPresent = key in input2;
@@ -25720,6 +25843,7 @@ var $ZodMap = /* @__PURE__ */ $constructor("$ZodMap", (inst, def) => {
       return Promise.all(proms).then(() => payload);
     return payload;
   };
+  capSize(inst, mapSize);
 });
 function handleMapResult(keyResult, valueResult, final, key, input2, inst, ctx) {
   if (keyResult.issues.length) {
@@ -25786,6 +25910,7 @@ var $ZodSet = /* @__PURE__ */ $constructor("$ZodSet", (inst, def) => {
       return Promise.all(proms).then(() => payload);
     return payload;
   };
+  capSize(inst, setSize);
 });
 function handleSetResult(result, final) {
   if (result.issues.length) {
@@ -35316,9 +35441,15 @@ function generateNullableCheck(doc, ctx, schema, accessor, buildsValue = true) {
   doc.write(`}`);
   return outputVar;
 }
+function generateSizeGate(doc, schema, size) {
+  for (const [max, check2] of sizeCaps(schema._zod.def.checks)) {
+    doc.write(`if (${size} > ${numericOperand(max, check2._zod.def.check)}) return INVALID;`);
+  }
+}
 function generateArrayCheck(doc, ctx, schema, accessor, buildsValue = true) {
   const def = schema._zod.def;
   doc.write(`if (!Array.isArray(${accessor})) return INVALID;`);
+  generateSizeGate(doc, schema, `${accessor}.length`);
   const outputVar = buildsValue ? newVar(ctx) : null;
   const iVar = newVar(ctx);
   const elemVar = newVar(ctx);
@@ -35718,6 +35849,7 @@ function literalPropertyKey(ctx, key) {
 function generateMapCheck(doc, ctx, schema, accessor) {
   const def = schema._zod.def;
   doc.write(`if (!(${accessor} instanceof Map)) return INVALID;`);
+  generateSizeGate(doc, schema, `${accessor}.size`);
   const outputVar = newVar(ctx);
   const kVar = newVar(ctx);
   const valVar = newVar(ctx);
@@ -35734,6 +35866,7 @@ function generateMapCheck(doc, ctx, schema, accessor) {
 function generateSetCheck(doc, ctx, schema, accessor) {
   const def = schema._zod.def;
   doc.write(`if (!(${accessor} instanceof Set)) return INVALID;`);
+  generateSizeGate(doc, schema, `${accessor}.size`);
   const outputVar = newVar(ctx);
   const valVar = newVar(ctx);
   doc.write(`const ${outputVar} = new Set();`);
@@ -41221,25 +41354,6 @@ async function getPullRequestDiff(repo, prNumber, token, baseBranch = "main") {
     const msg = err instanceof Error ? err.message : String(err);
     console.warn(`\u2139\uFE0F Local base branch git diff failed or exceeded buffer limit: ${msg}`);
   }
-  try {
-    const diff = (0, import_child_process.execFileSync)(
-      "git",
-      [
-        "diff",
-        "HEAD~1...HEAD",
-        "--",
-        ".",
-        ":(exclude)package-lock.json",
-        ":(exclude)pnpm-lock.yaml",
-        ":(exclude)yarn.lock"
-      ],
-      { encoding: "utf-8", maxBuffer: 1024 * 1024 * 5 }
-    );
-    if (diff && diff.trim().length > 0) return diff;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`\u2139\uFE0F Local HEAD~1 git diff failed or exceeded buffer limit: ${msg}`);
-  }
   if (repo && prNumber && token) {
     try {
       validateRepo(repo);
@@ -41263,6 +41377,25 @@ async function getPullRequestDiff(repo, prNumber, token, baseBranch = "main") {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(`\u26A0\uFE0F Failed to fetch PR diff from GitHub API: ${msg}`);
     }
+  }
+  try {
+    const diff = (0, import_child_process.execFileSync)(
+      "git",
+      [
+        "diff",
+        "HEAD~1...HEAD",
+        "--",
+        ".",
+        ":(exclude)package-lock.json",
+        ":(exclude)pnpm-lock.yaml",
+        ":(exclude)yarn.lock"
+      ],
+      { encoding: "utf-8", maxBuffer: 1024 * 1024 * 5 }
+    );
+    if (diff && diff.trim().length > 0) return diff;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`\u2139\uFE0F Local HEAD~1 git diff failed or exceeded buffer limit: ${msg}`);
   }
   return null;
 }
@@ -41343,10 +41476,23 @@ async function postInlineSuggestions(suggestions, token, repo, prNumber) {
         continue;
       }
       const sanitizedSuggestion = item.suggestion.replace(/```/g, "\\`\\`\\`");
+      const sanitizedForAgent = item.suggestion.replace(/```/g, "'''").replace(/<\/?details>/gi, "").trimEnd();
+      const agentPrompt = `<details>
+<summary>\u{1F916} Prompt for AI Agents</summary>
+
+\`\`\`
+Review comment at @${item.path} line ${item.line}:
+Apply the following code change:
+${sanitizedForAgent}
+\`\`\`
+
+</details>`;
       const body = `### \u{1F916} ReviewGround 1-Click Code Suggestion
 \`\`\`suggestion
 ${sanitizedSuggestion.trimEnd()}
-\`\`\``;
+\`\`\`
+
+${agentPrompt}`;
       const postRes = await fetch(`https://api.github.com/repos/${repo}/pulls/${prNumber}/comments`, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
@@ -41830,9 +41976,11 @@ ${registryResult.notes.map((n) => `- ${n}`).join("\n")}
     }
   }
   let truncatedDiff;
+  let skippedFiles = [];
   if (config2.enableSmartDiffPriority !== false && diff.length > 28e3) {
     const priorityResult = packPrioritizedDiff(diff, 28e3);
     truncatedDiff = priorityResult.packedDiff;
+    skippedFiles = priorityResult.skippedFiles;
     console.log(priorityResult.priorityLog);
     if (priorityResult.skippedFiles.length > 0) {
       console.log(`\u{1F5C2}\uFE0F Skipped files (low priority or budget): ${priorityResult.skippedFiles.slice(0, 10).join(", ")}${priorityResult.skippedFiles.length > 10 ? "..." : ""}`);
@@ -41942,10 +42090,21 @@ ${coverageReport.suggestedTests}`;
     runId: config2.runId || process.env.GITHUB_RUN_ID,
     previousHistory
   }) : "";
+  const findingCounts = extractFindingCounts(cleanReviewText, inlineSuggestions.length);
+  const actionableHeader = generateActionableHeader(findingCounts);
+  const agentPromptBox = generateAgentPromptBox(inlineSuggestions, findingCounts);
+  const filesAnalyzed = extractChangedFilesFromDiff(truncatedDiff);
+  const reviewScopeBox = generateReviewScopeBox({
+    filesAnalyzed,
+    filesSkipped: skippedFiles,
+    registryGroundingUsed: !!packageGroundTruthNote
+  });
   const markdownOutput = `## \u{1F6E1}\uFE0F ReviewGround AI Code Review & Security Analysis
 *Reviewer Engine: ${engineString}*
 
-${cleanReviewText}${testCoverageSection}
+${actionableHeader}
+
+${cleanReviewText}${testCoverageSection}${agentPromptBox}${reviewScopeBox}
 
 ---
 *Generated automatically by [ReviewGround](https://github.com/arungupta1526/ReviewGround) (${engineString}).*${costFooter}
@@ -42525,7 +42684,9 @@ async function run() {
     const token = getOptionalInput("github-token", ["GITHUB_TOKEN", "GH_TOKEN"]);
     const repo = getOptionalInput("repo", ["GITHUB_REPOSITORY", "REPO_FULL_NAME"]);
     const prNumber = resolvePrNumber();
-    const mode = (getOptionalInput("mode", ["REVIEWGROUND_MODE", "MODE"]) || "all").toLowerCase();
+    const rawMode = getOptionalInput("mode", ["REVIEWGROUND_MODE", "MODE"]);
+    const isIssueComment = process.env.GITHUB_EVENT_NAME === "issue_comment";
+    const mode = (rawMode && rawMode.toLowerCase() !== "all" ? rawMode : isIssueComment ? "slash-command" : rawMode || "all").toLowerCase();
     console.log("\u{1F680} ReviewGround GitHub Action Initializing...");
     console.log(`- Repository: ${repo || "local"}`);
     console.log(`- PR Number: ${prNumber || "N/A (Push or non-PR context)"}`);

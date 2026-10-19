@@ -208,6 +208,8 @@ ReviewGround is designed with **zero-boilerplate ergonomics**. Over 80% of intel
 | **Output Token Limit**       |          `max-tokens: '2048'`          | Cost-effective response bounds preventing runaway token costs                     |
 | **Base Comparison Branch**   |         `base-branch: 'main'`          | Automatically calculates diff against base `main` branch                          |
 | **Review Language**          |        `review-language: 'en'`         | English language review output by default                                         |
+| **Actionable Findings Banner**|              Built-in                  | Top-level summary badge highlighting Blockers, Warnings, and Committable Suggestions|
+| **AI Coding Agent Prompts**  |              Built-in                  | Formats `<details><summary>🤖 Prompt for AI Coding Agents</summary>` for 1-click fixes |
 
 ### B. Opt-In Enterprise Power Flags (Disabled by Default — Add When Needed)
 
@@ -949,7 +951,12 @@ permissions:
 jobs:
   slash-command:
     runs-on: ubuntu-latest
-    if: github.event.issue.pull_request != null # Only handle PR comments
+    if: |
+      github.event.issue.pull_request != null &&
+      github.actor != 'dependabot[bot]' &&
+      (contains(github.event.comment.body, '@reviewground') ||
+       contains(github.event.comment.body, '/review') ||
+       contains(github.event.comment.body, '@review'))
     steps:
       - uses: arungupta1526/ReviewGround@v1
         with:

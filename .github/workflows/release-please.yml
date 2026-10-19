@@ -26,9 +26,14 @@ jobs:
         with:
           script: |
             const tag = '${{ steps.release.outputs.tag_name }}';
+            if (!tag) {
+              console.log('No new release tag found; skipping floating tag update.');
+              return;
+            }
             const major = tag.split('.')[0];
-            const sha = '${{ steps.release.outputs.sha }}';
+            const sha = '${{ steps.release.outputs.sha }}' || context.sha;
             console.log(`Updating floating tag ${major} to point to ${tag} (${sha})`);
+
             try {
               await github.rest.git.updateRef({
                 owner: context.repo.owner,
@@ -37,13 +42,14 @@ jobs:
                 sha: sha,
                 force: true
               });
-              console.log(`Successfully updated floating tag ${major}`);
+              console.log(`✅ Successfully updated floating tag ${major}`);
             } catch (err) {
-              console.log(`Tag ref does not exist yet, creating: ${err.message}`);
+              console.log(`Tag ref does not exist yet or failed update (${err.message}), creating fresh ref...`);
               await github.rest.git.createRef({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 ref: `refs/tags/${major}`,
                 sha: sha
               });
+              console.log(`✅ Successfully created floating tag ${major}`);
             }
