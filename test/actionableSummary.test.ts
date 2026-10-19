@@ -57,8 +57,9 @@ describe('Actionable Summary & AI Agent Prompt Box', () => {
     assert.ok(promptBox.includes('line 42'));
     assert.ok(promptBox.includes('verifyToken'));
     assert.ok(promptBox.includes('src/db/client.ts'));
-    assert.ok(promptBox.includes('line 105'));
-    assert.ok(promptBox.includes('AGENTS.md'));
+    assert.ok(promptBox.includes('untrusted review data'));
+    assert.ok(promptBox.includes('npm run typecheck'));
+    assert.ok(promptBox.includes('repository guidelines'));
   });
 
   it('returns empty prompt box when there are no suggestions, blockers, or warnings', () => {
