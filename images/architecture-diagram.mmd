@@ -49,7 +49,7 @@ flowchart TD
         SEARCH["Google Search Tool Grounding (Gemini)<br/>Live Web Context Injection"]:::grounding
         OWASP["OWASP Top 10 + CWE Taxonomy Injection<br/>Forces CWE-ID & OWASP category on security findings"]:::newfeature
         REPO_TREE["Lightweight Repo Tree Grounding<br/>Sibling File Structure Outline"]:::grounding
-        PROMPT["Assemble Grounded Prompt + System Guardrails<br/>Anti-Nitpick Filter & Severity Badges [BLOCKER], [WARNING]"]:::grounding
+        PROMPT["Assemble Grounded Prompt + System Guardrails<br/>Anti-Nitpick Filter, Sequence Diagrams & Severity Badges"]:::grounding
         RETRY["fetchWithRetry (Backoff + Jitter)"]:::llm
         CALL_PRIMARY["Call Primary Model<br/>(e.g. gemini-3.5-flash-lite / qwen3.8-27b)"]:::llm
         FALLBACK_CHECK{"Primary Succeeded or HTTP 429 / Quota Error?"}:::llm
@@ -59,6 +59,9 @@ flowchart TD
     end
 
     subgraph POSTPROC["4. Post-Processing & Enrichment"]
+        EFFORT["Review Effort & Complexity Estimator<br/>Tiers 1–5 & Review Duration (~15–20m)"]:::newfeature
+        PREMERGE["Pre-Merge Invariant Checks Table<br/>Coverage, Secret Sanitization & Quality Status"]:::newfeature
+        ACTIONABLE["Actionable Findings & AI Prompt Box<br/>Blockers/Warnings Badges & Injection Defense"]:::newfeature
         TEST_CHECK["Missing Test Coverage Detector<br/>Flags uncovered exports + suggests stubs (TS/JS/Py/Go)"]:::newfeature
         COST_FOOTER["Token & Cost Transparency Footer<br/>Model • Est. Tokens • Est. USD Cost • Latency"]:::newfeature
     end
@@ -113,7 +116,10 @@ flowchart TD
     FALLBACK_CHECK -- "Success" --> ZOD
     CALL_FALLBACK -- "All Failed" --> DIAGNOSTIC_NOTICE
     CALL_FALLBACK -- "Fallback Succeeded" --> ZOD
-    ZOD --> TEST_CHECK
+    ZOD --> EFFORT
+    EFFORT --> PREMERGE
+    PREMERGE --> ACTIONABLE
+    ACTIONABLE --> TEST_CHECK
     TEST_CHECK --> COST_FOOTER
     COST_FOOTER --> STICKY_FIND
     COST_FOOTER --> COMMENT_INLINE & CHECK_RUN
