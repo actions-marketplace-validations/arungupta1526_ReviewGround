@@ -949,7 +949,12 @@ permissions:
 jobs:
   slash-command:
     runs-on: ubuntu-latest
-    if: github.event.issue.pull_request != null # Only handle PR comments
+    if: |
+      github.event.issue.pull_request != null &&
+      github.actor != 'dependabot[bot]' &&
+      (contains(github.event.comment.body, '@reviewground') ||
+       contains(github.event.comment.body, '/review') ||
+       contains(github.event.comment.body, '@review'))
     steps:
       - uses: arungupta1526/ReviewGround@v1
         with:
