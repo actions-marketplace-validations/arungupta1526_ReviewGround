@@ -22,3 +22,6 @@ yarn-error.log*
 # Test coverage
 coverage/
 .nyc_output/
+
+# Scratch & Temporary Assets
+temp-img/
