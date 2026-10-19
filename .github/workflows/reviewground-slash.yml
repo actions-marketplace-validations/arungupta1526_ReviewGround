@@ -20,7 +20,7 @@ jobs:
        contains(github.event.comment.body, '@review'))
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Setup Node.js 24
         uses: actions/setup-node@v7
