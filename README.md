@@ -209,7 +209,10 @@ ReviewGround is designed with **zero-boilerplate ergonomics**. Over 80% of intel
 | **Base Comparison Branch**   |         `base-branch: 'main'`          | Automatically calculates diff against base `main` branch                          |
 | **Review Language**          |        `review-language: 'en'`         | English language review output by default                                         |
 | **Actionable Findings Banner**|              Built-in                  | Top-level summary badge highlighting Blockers, Warnings, and Committable Suggestions|
-| **AI Coding Agent Prompts**  |              Built-in                  | Formats `<details><summary>🤖 Prompt for AI Coding Agents</summary>` for 1-click fixes |
+| **AI Coding Agent Prompts**  |              Built-in                  | Formats defensive `<details><summary>🤖 Prompt for AI Coding Agents</summary>` blocks   |
+| **Review Effort Estimator**  |              Built-in                  | Automatically computes complexity tiers (1–5) and review duration estimate (`~15–20m`)|
+| **Pre-Merge Invariant Table** |              Built-in                  | Expandable status checklist for test coverage, secret sanitization & package grounding|
+| **Sequence Diagram Prompts** |              Built-in                  | Directs models to generate Mermaid sequence diagrams for multi-tier architecture flows|
 
 ### B. Opt-In Enterprise Power Flags (Disabled by Default — Add When Needed)
 
@@ -228,6 +231,7 @@ ReviewGround is designed with **zero-boilerplate ergonomics**. Over 80% of intel
 | ---------------------- | :-------------: | ----------------------------------------------------------------------------------------- |
 | `contents: read`       |  **Mandatory**  | Checks out repository code and computes git diff                                          |
 | `pull-requests: write` |  **Mandatory**  | Posts the sticky review comment, 1-click inline suggestions, and updates PR description   |
+| `issues: write`        | **Recommended** | Handles issue comments and conversational slash command thread replies seamlessly         |
 | `actions: read`        | **Recommended** | Queries the GitHub Actions Jobs API to calculate stage duration metrics (`14s`, `1m 20s`) |
 | `checks: write`        | **Conditional** | **Only required if `enable-check-run: 'true'`** (for blocking merge gate status checks)   |
 
@@ -947,6 +951,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  issues: write
 
 jobs:
   slash-command:
