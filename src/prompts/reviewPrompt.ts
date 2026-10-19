@@ -23,6 +23,9 @@ const ANTI_NITPICK_RULE =
 const SEVERITY_BADGES_INSTRUCTION =
   '\nSEVERITY RATING FORMAT: Prefix each finding with one of these standardized severity badges:\n- 🚨 **[BLOCKER]**: High/critical security vulnerabilities, data loss, crashes, or severe regressions.\n- ⚠️ **[WARNING]**: Performance bottlenecks, resource leaks, edge-case bugs, or unhandled errors.\n- 💡 **[SUGGESTION]**: Architectural enhancements or missing test coverage stubs (comprehensive mode only).\nDo NOT report low-value style opinions or manufacture non-existent issues.';
 
+const SEQUENCE_DIAGRAM_INSTRUCTION =
+  '\nARCHITECTURE & WORKFLOW VISUALIZATION: If the pull request modifies or introduces multi-component interactions (e.g., client -> API -> database, or webhook -> verification -> state updates), provide a concise Mermaid sequence diagram (```mermaid sequenceDiagram ... ```) illustrating the end-to-end data flow.';
+
 const REVIEW_FOCUS_MAP: Record<string, string> = {
   critical:
     '1. Critical bugs, edge-case regressions, unhandled exceptions, and memory/resource leaks.\n2. Security risks (OWASP Top 10, secret leaks, SSRF, injection, XSS, insecure deserialization).\n\nFocus ONLY on critical and security issues. Do NOT comment on style, naming, or minor improvements.' +
@@ -94,7 +97,7 @@ export function buildReviewPrompt(config: PromptConfig): string {
   const repoContext = config.repoContext || '';
   const activeProviderName = (config.provider || '').toLowerCase();
   const modelName = (config.model || '').toLowerCase();
-  const contextInstructions = `${packageGroundTruthNote}${customGuidelines}${repoContext}${SEVERITY_BADGES_INSTRUCTION}${owaspInstruction}${languageInstruction}`;
+  const contextInstructions = `${packageGroundTruthNote}${customGuidelines}${repoContext}${SEVERITY_BADGES_INSTRUCTION}${SEQUENCE_DIAGRAM_INSTRUCTION}${owaspInstruction}${languageInstruction}`;
 
   if (activeProviderName === 'anthropic' || modelName.startsWith('claude')) {
     // Claude: Prefers XML-structured tags for diff and instructions

@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import { ProviderManager, ProviderResponse, ReviewOptions } from './providers/index.js';
 import { verifyPackagesMultiRegistry } from './packageRegistry.js';
 import { packPrioritizedDiff } from './diffPrioritizer.js';
-import { analyzeTestCoverage } from './testCoverageDetector.js';
+import { analyzeTestCoverage, TestCoverageReport } from './testCoverageDetector.js';
 import { runPrDescribe } from './prDescriber.js';
 import { buildReviewPrompt } from './prompts/index.js';
 import { generateCostFooter, parseCostHistory, CostHistoryEntry } from './metrics/index.js';
@@ -21,6 +21,8 @@ import {
   generateAgentPromptBox,
   generateReviewScopeBox,
 } from './utils/actionableSummary.js';
+import { estimateReviewEffort } from './utils/effortEstimator.js';
+import { generatePreMergeChecksBox } from './utils/preMergeChecks.js';
 import {
   DEFAULT_COMMENT_TAG,
   CI_SECTION_HEADER,
@@ -351,8 +353,9 @@ export async function runReview(config: ReviewerConfig = {}): Promise<ProviderRe
 
   // Test coverage detection
   let testCoverageSection = '';
+  let coverageReport: TestCoverageReport | null = null;
   if (config.enableTestCoverageCheck !== false) {
-    const coverageReport = analyzeTestCoverage(diff);
+    coverageReport = analyzeTestCoverage(diff);
     if (coverageReport.warnings.length > 0) {
       testCoverageSection = `\n\n### 🧪 Test Coverage\n\n${coverageReport.warnings.join('\n')}\n${coverageReport.suggestedTests}`;
       console.log(`⚠️ [TestCheck] ${coverageReport.warnings[0]}`);
@@ -390,6 +393,12 @@ export async function runReview(config: ReviewerConfig = {}): Promise<ProviderRe
 
   const findingCounts = extractFindingCounts(cleanReviewText, inlineSuggestions.length);
   const actionableHeader = generateActionableHeader(findingCounts);
+  const effort = estimateReviewEffort(diff);
+  const preMergeChecksBox = generatePreMergeChecksBox({
+    coverageReport,
+    counts: findingCounts,
+    hasRegistryGrounding: !!packageGroundTruthNote,
+  });
   const agentPromptBox = generateAgentPromptBox(inlineSuggestions, findingCounts);
   const filesAnalyzed = extractChangedFilesFromDiff(truncatedDiff);
   const reviewScopeBox = generateReviewScopeBox({
@@ -399,11 +408,11 @@ export async function runReview(config: ReviewerConfig = {}): Promise<ProviderRe
   });
 
   const markdownOutput = `## 🛡️ ReviewGround AI Code Review & Security Analysis
-*Reviewer Engine: ${engineString}*
+*Reviewer Engine: ${engineString}* · ${effort.badge}
 
 ${actionableHeader}
 
-${cleanReviewText}${testCoverageSection}${agentPromptBox}${reviewScopeBox}\n\n---\n*Generated automatically by [ReviewGround](https://github.com/arungupta1526/ReviewGround) (${engineString}).*${costFooter}
+${cleanReviewText}${preMergeChecksBox}${testCoverageSection}${agentPromptBox}${reviewScopeBox}\n\n---\n*Generated automatically by [ReviewGround](https://github.com/arungupta1526/ReviewGround) (${engineString}).*${costFooter}
 `;
 
   // Output to console & step summary
