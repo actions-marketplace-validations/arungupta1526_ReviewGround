@@ -76,28 +76,8 @@ export async function getPullRequestDiff(
     console.warn(`ℹ️ Local base branch git diff failed or exceeded buffer limit: ${msg}`);
   }
 
-  // 2. Try git diff HEAD~1 (5MB safe buffer guard via execFileSync)
-  try {
-    const diff = execFileSync(
-      'git',
-      [
-        'diff',
-        'HEAD~1...HEAD',
-        '--',
-        '.',
-        ':(exclude)package-lock.json',
-        ':(exclude)pnpm-lock.yaml',
-        ':(exclude)yarn.lock',
-      ],
-      { encoding: 'utf-8', maxBuffer: 1024 * 1024 * 5 }
-    );
-    if (diff && diff.trim().length > 0) return diff;
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`ℹ️ Local HEAD~1 git diff failed or exceeded buffer limit: ${msg}`);
-  }
-
-  // 3. Fallback to GitHub Pull Request diff API (handles fetch-depth: 1)
+  // 2. Fetch directly from GitHub PR diff API if repo, prNumber, and token are available
+  // This is critical for issue_comment events or shallow clones where local HEAD is not the PR branch
   if (repo && prNumber && token) {
     try {
       validateRepo(repo);
@@ -122,6 +102,27 @@ export async function getPullRequestDiff(
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(`⚠️ Failed to fetch PR diff from GitHub API: ${msg}`);
     }
+  }
+
+  // 3. Fallback to git diff HEAD~1 (for local push reviews or non-PR commits)
+  try {
+    const diff = execFileSync(
+      'git',
+      [
+        'diff',
+        'HEAD~1...HEAD',
+        '--',
+        '.',
+        ':(exclude)package-lock.json',
+        ':(exclude)pnpm-lock.yaml',
+        ':(exclude)yarn.lock',
+      ],
+      { encoding: 'utf-8', maxBuffer: 1024 * 1024 * 5 }
+    );
+    if (diff && diff.trim().length > 0) return diff;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`ℹ️ Local HEAD~1 git diff failed or exceeded buffer limit: ${msg}`);
   }
 
   return null;

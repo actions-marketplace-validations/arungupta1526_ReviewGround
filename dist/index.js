@@ -41221,25 +41221,6 @@ async function getPullRequestDiff(repo, prNumber, token, baseBranch = "main") {
     const msg = err instanceof Error ? err.message : String(err);
     console.warn(`\u2139\uFE0F Local base branch git diff failed or exceeded buffer limit: ${msg}`);
   }
-  try {
-    const diff = (0, import_child_process.execFileSync)(
-      "git",
-      [
-        "diff",
-        "HEAD~1...HEAD",
-        "--",
-        ".",
-        ":(exclude)package-lock.json",
-        ":(exclude)pnpm-lock.yaml",
-        ":(exclude)yarn.lock"
-      ],
-      { encoding: "utf-8", maxBuffer: 1024 * 1024 * 5 }
-    );
-    if (diff && diff.trim().length > 0) return diff;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`\u2139\uFE0F Local HEAD~1 git diff failed or exceeded buffer limit: ${msg}`);
-  }
   if (repo && prNumber && token) {
     try {
       validateRepo(repo);
@@ -41263,6 +41244,25 @@ async function getPullRequestDiff(repo, prNumber, token, baseBranch = "main") {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(`\u26A0\uFE0F Failed to fetch PR diff from GitHub API: ${msg}`);
     }
+  }
+  try {
+    const diff = (0, import_child_process.execFileSync)(
+      "git",
+      [
+        "diff",
+        "HEAD~1...HEAD",
+        "--",
+        ".",
+        ":(exclude)package-lock.json",
+        ":(exclude)pnpm-lock.yaml",
+        ":(exclude)yarn.lock"
+      ],
+      { encoding: "utf-8", maxBuffer: 1024 * 1024 * 5 }
+    );
+    if (diff && diff.trim().length > 0) return diff;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`\u2139\uFE0F Local HEAD~1 git diff failed or exceeded buffer limit: ${msg}`);
   }
   return null;
 }
@@ -42525,7 +42525,9 @@ async function run() {
     const token = getOptionalInput("github-token", ["GITHUB_TOKEN", "GH_TOKEN"]);
     const repo = getOptionalInput("repo", ["GITHUB_REPOSITORY", "REPO_FULL_NAME"]);
     const prNumber = resolvePrNumber();
-    const mode = (getOptionalInput("mode", ["REVIEWGROUND_MODE", "MODE"]) || "all").toLowerCase();
+    const rawMode = getOptionalInput("mode", ["REVIEWGROUND_MODE", "MODE"]);
+    const isIssueComment = process.env.GITHUB_EVENT_NAME === "issue_comment";
+    const mode = (rawMode && rawMode.toLowerCase() !== "all" ? rawMode : isIssueComment ? "slash-command" : rawMode || "all").toLowerCase();
     console.log("\u{1F680} ReviewGround GitHub Action Initializing...");
     console.log(`- Repository: ${repo || "local"}`);
     console.log(`- PR Number: ${prNumber || "N/A (Push or non-PR context)"}`);
