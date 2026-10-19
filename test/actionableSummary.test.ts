@@ -79,4 +79,17 @@ describe('Actionable Summary & AI Agent Prompt Box', () => {
     assert.ok(scopeBox.includes('`pnpm-lock.yaml`'));
     assert.ok(scopeBox.includes('Live npm / PyPI'));
   });
+
+  it('sanitizes nested code fences and details tags inside agent prompt suggestions', () => {
+    const suggestions: InlineSuggestion[] = [
+      {
+        path: 'src/app.ts',
+        line: 12,
+        suggestion: '</details>```injection```',
+      },
+    ];
+    const promptBox = generateAgentPromptBox(suggestions, { blockers: 0, warnings: 0, suggestions: 1 });
+    assert.ok(!promptBox.includes('</details>```'));
+    assert.ok(promptBox.includes("'''injection'''"));
+  });
 });

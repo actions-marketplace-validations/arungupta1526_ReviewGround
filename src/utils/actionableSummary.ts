@@ -64,8 +64,13 @@ export function generateAgentPromptBox(
 
   const items = inlineSuggestions
     .map(
-      (s, idx) =>
-        `${idx + 1}. In \`${s.path}\` line ${s.line}:\nApply fix:\n\`\`\`\n${s.suggestion.trim()}\n\`\`\``
+      (s, idx) => {
+        const sanitized = s.suggestion
+          .replace(/```/g, "'''")
+          .replace(/<\/?details>/gi, '')
+          .trim();
+        return `${idx + 1}. In \`${s.path}\` line ${s.line}:\nApply fix:\n\`\`\`\n${sanitized}\n\`\`\``;
+      }
     )
     .join('\n\n');
 

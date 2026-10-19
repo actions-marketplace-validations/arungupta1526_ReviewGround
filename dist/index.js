@@ -21405,11 +21405,14 @@ function generateAgentPromptBox(inlineSuggestions, counts) {
     return "";
   }
   const items = inlineSuggestions.map(
-    (s, idx) => `${idx + 1}. In \`${s.path}\` line ${s.line}:
+    (s, idx) => {
+      const sanitized = s.suggestion.replace(/```/g, "'''").replace(/<\/?details>/gi, "").trim();
+      return `${idx + 1}. In \`${s.path}\` line ${s.line}:
 Apply fix:
 \`\`\`
-${s.suggestion.trim()}
-\`\`\``
+${sanitized}
+\`\`\``;
+    }
   ).join("\n\n");
   const content = items ? `ReviewGround detected actionable issues on this PR. Please apply the following code fixes:
 
@@ -41473,13 +41476,14 @@ async function postInlineSuggestions(suggestions, token, repo, prNumber) {
         continue;
       }
       const sanitizedSuggestion = item.suggestion.replace(/```/g, "\\`\\`\\`");
+      const sanitizedForAgent = item.suggestion.replace(/```/g, "'''").replace(/<\/?details>/gi, "").trimEnd();
       const agentPrompt = `<details>
 <summary>\u{1F916} Prompt for AI Agents</summary>
 
 \`\`\`
 Review comment at @${item.path} line ${item.line}:
 Apply the following code change:
-${item.suggestion.trimEnd()}
+${sanitizedForAgent}
 \`\`\`
 
 </details>`;
