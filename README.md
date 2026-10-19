@@ -209,7 +209,10 @@ ReviewGround is designed with **zero-boilerplate ergonomics**. Over 80% of intel
 | **Base Comparison Branch**   |         `base-branch: 'main'`          | Automatically calculates diff against base `main` branch                          |
 | **Review Language**          |        `review-language: 'en'`         | English language review output by default                                         |
 | **Actionable Findings Banner**|              Built-in                  | Top-level summary badge highlighting Blockers, Warnings, and Committable Suggestions|
-| **AI Coding Agent Prompts**  |              Built-in                  | Formats `<details><summary>🤖 Prompt for AI Coding Agents</summary>` for 1-click fixes |
+| **AI Coding Agent Prompts**  |              Built-in                  | Formats defensive `<details><summary>🤖 Prompt for AI Coding Agents</summary>` blocks   |
+| **Review Effort Estimator**  |              Built-in                  | Automatically computes complexity tiers (1–5) and review duration estimate (`~15–20m`)|
+| **Pre-Merge Invariant Table** |              Built-in                  | Expandable status checklist for test coverage, secret sanitization & package grounding|
+| **Sequence Diagram Prompts** |              Built-in                  | Directs models to generate Mermaid sequence diagrams for multi-tier architecture flows|
 
 ### B. Opt-In Enterprise Power Flags (Disabled by Default — Add When Needed)
 
@@ -228,6 +231,7 @@ ReviewGround is designed with **zero-boilerplate ergonomics**. Over 80% of intel
 | ---------------------- | :-------------: | ----------------------------------------------------------------------------------------- |
 | `contents: read`       |  **Mandatory**  | Checks out repository code and computes git diff                                          |
 | `pull-requests: write` |  **Mandatory**  | Posts the sticky review comment, 1-click inline suggestions, and updates PR description   |
+| `issues: write`        | **Recommended** | Handles issue comments and conversational slash command thread replies seamlessly         |
 | `actions: read`        | **Recommended** | Queries the GitHub Actions Jobs API to calculate stage duration metrics (`14s`, `1m 20s`) |
 | `checks: write`        | **Conditional** | **Only required if `enable-check-run: 'true'`** (for blocking merge gate status checks)   |
 
@@ -668,7 +672,7 @@ flowchart TD
         SEARCH["Google Search Tool Grounding (Gemini)<br/>Live Web Context Injection"]:::grounding
         OWASP["OWASP Top 10 + CWE Taxonomy Injection<br/>Forces CWE-ID & OWASP category on security findings"]:::newfeature
         REPO_TREE["Lightweight Repo Tree Grounding<br/>Sibling File Structure Outline"]:::grounding
-        PROMPT["Assemble Grounded Prompt + System Guardrails<br/>Anti-Nitpick Filter & Severity Badges [BLOCKER], [WARNING]"]:::grounding
+        PROMPT["Assemble Grounded Prompt + System Guardrails<br/>Anti-Nitpick Filter, Sequence Diagrams & Severity Badges"]:::grounding
         RETRY["fetchWithRetry (Backoff + Jitter)"]:::llm
         CALL_PRIMARY["Call Primary Model<br/>(e.g. gemini-3.5-flash-lite / qwen3.8-27b)"]:::llm
         FALLBACK_CHECK{"Primary Succeeded or HTTP 429 / Quota Error?"}:::llm
@@ -678,6 +682,9 @@ flowchart TD
     end
 
     subgraph POSTPROC["4. Post-Processing & Enrichment"]
+        EFFORT["Review Effort & Complexity Estimator<br/>Tiers 1–5 & Review Duration (~15–20m)"]:::newfeature
+        PREMERGE["Pre-Merge Invariant Checks Table<br/>Coverage, Secret Sanitization & Quality Status"]:::newfeature
+        ACTIONABLE["Actionable Findings & AI Prompt Box<br/>Blockers/Warnings Badges & Injection Defense"]:::newfeature
         TEST_CHECK["Missing Test Coverage Detector<br/>Flags uncovered exports + suggests stubs (TS/JS/Py/Go)"]:::newfeature
         COST_FOOTER["Token & Cost Transparency Footer<br/>Model • Est. Tokens • Est. USD Cost • Latency"]:::newfeature
     end
@@ -732,7 +739,10 @@ flowchart TD
     FALLBACK_CHECK -- "Success" --> ZOD
     CALL_FALLBACK -- "All Failed" --> DIAGNOSTIC_NOTICE
     CALL_FALLBACK -- "Fallback Succeeded" --> ZOD
-    ZOD --> TEST_CHECK
+    ZOD --> EFFORT
+    EFFORT --> PREMERGE
+    PREMERGE --> ACTIONABLE
+    ACTIONABLE --> TEST_CHECK
     TEST_CHECK --> COST_FOOTER
     COST_FOOTER --> STICKY_FIND
     COST_FOOTER --> COMMENT_INLINE & CHECK_RUN
@@ -947,6 +957,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  issues: write
 
 jobs:
   slash-command:

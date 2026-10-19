@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.5.0](https://github.com/arungupta1526/ReviewGround/compare/v1.4.0...v1.5.0) (2026-10-19)
+
+
+### Features
+
+* actionable findings banner, ai agent prompt box, and isolated slash commands ([5991eea](https://github.com/arungupta1526/ReviewGround/commit/5991eea3fdf477f85a5fa9b0341da0262bd853bf))
+* **ci:** enable conditional concurrency cancellation on non-main branches ([905c33b](https://github.com/arungupta1526/ReviewGround/commit/905c33b74bfdd4dc2c6699c1640da32eaf57c261))
+* **ci:** enable conditional concurrency cancellation on non-main branches ([3d999a8](https://github.com/arungupta1526/ReviewGround/commit/3d999a895da11336c51d061bbb79f81f7ce9621b))
+* **prompts:** harden ai agent prompts with prompt injection defense and validation commands ([75bddff](https://github.com/arungupta1526/ReviewGround/commit/75bddff92dcd3b2e3e3c3521b5d114ac2723a54f))
+* review effort estimator, pre-merge invariant checks, and prompt injection defense ([a73add9](https://github.com/arungupta1526/ReviewGround/commit/a73add9fc8bdef8217e71222eb63aa98e0455564))
+* **reviewer:** add actionable findings banner, ai agent prompt box, and review scope dropdown ([ec5a1ea](https://github.com/arungupta1526/ReviewGround/commit/ec5a1ea6bc714a5be5c7d7bbe4a0868f857a1cdb))
+* **reviewer:** add code review effort estimator and pre-merge invariant checks ([7f9b2d9](https://github.com/arungupta1526/ReviewGround/commit/7f9b2d98638d687591df6245a67a446263988b37))
+
+
+### Bug Fixes
+
+* **reviewer:** prioritize PR diff API over local diff and auto-detect comment mode ([d488719](https://github.com/arungupta1526/ReviewGround/commit/d488719385d34ac443237861a45cc2dd30aaf99f))
+* **reviewer:** sanitize nested code fences and details tags in ai agent prompts ([5109723](https://github.com/arungupta1526/ReviewGround/commit/51097237b755de1c6e7e59e4642864b8f53b6516))
+* **workflows:** guard floating tag update and isolate slash commands ([0f81d08](https://github.com/arungupta1526/ReviewGround/commit/0f81d082c81560a46683cb8a263cfb99009db0b1))
+
 ## [1.4.0](https://github.com/arungupta1526/ReviewGround/compare/v1.3.0...v1.4.0) (2026-10-10)
 
 
