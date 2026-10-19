@@ -262,8 +262,9 @@ index 0000000..1111111 100644
 describe('Architecture Diagram Parity', () => {
   it('ensures images/architecture-diagram.mmd matches the Mermaid block in README.md', async () => {
     const fs = await import('fs');
-    const readme = fs.readFileSync('README.md', 'utf-8');
-    const mmd = fs.readFileSync('images/architecture-diagram.mmd', 'utf-8');
+    // Normalize CRLF so the check also passes on Windows checkouts (core.autocrlf=true)
+    const readme = fs.readFileSync('README.md', 'utf-8').replace(/\r\n/g, '\n');
+    const mmd = fs.readFileSync('images/architecture-diagram.mmd', 'utf-8').replace(/\r\n/g, '\n');
     const match = readme.match(/```mermaid\n([\s\S]*?)\n```/);
     assert.ok(match, 'README.md must contain a mermaid block');
     assert.strictEqual(match[1].trim(), mmd.trim(), 'architecture-diagram.mmd must match README.md mermaid block');

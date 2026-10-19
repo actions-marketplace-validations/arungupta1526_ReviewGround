@@ -14,7 +14,13 @@ import { runPrDescribe } from './prDescriber.js';
 import { buildReviewPrompt } from './prompts/index.js';
 import { generateCostFooter, parseCostHistory, CostHistoryEntry } from './metrics/index.js';
 import { sanitizeDiffSecrets } from './utils/secretSanitizer.js';
-import { buildRepoContext } from './utils/repoContext.js';
+import { buildRepoContext, extractChangedFilesFromDiff } from './utils/repoContext.js';
+import {
+  extractFindingCounts,
+  generateActionableHeader,
+  generateAgentPromptBox,
+  generateReviewScopeBox,
+} from './utils/actionableSummary.js';
 import {
   DEFAULT_COMMENT_TAG,
   CI_SECTION_HEADER,
@@ -252,9 +258,11 @@ export async function runReview(config: ReviewerConfig = {}): Promise<ProviderRe
 
   // Diff Prioritization & Truncation
   let truncatedDiff: string;
+  let skippedFiles: string[] = [];
   if (config.enableSmartDiffPriority !== false && diff.length > 28000) {
     const priorityResult = packPrioritizedDiff(diff, 28000);
     truncatedDiff = priorityResult.packedDiff;
+    skippedFiles = priorityResult.skippedFiles;
     console.log(priorityResult.priorityLog);
     if (priorityResult.skippedFiles.length > 0) {
       console.log(`🗂️ Skipped files (low priority or budget): ${priorityResult.skippedFiles.slice(0, 10).join(', ')}${priorityResult.skippedFiles.length > 10 ? '...' : ''}`);
@@ -380,10 +388,22 @@ export async function runReview(config: ReviewerConfig = {}): Promise<ProviderRe
       })
     : '';
 
+  const findingCounts = extractFindingCounts(cleanReviewText, inlineSuggestions.length);
+  const actionableHeader = generateActionableHeader(findingCounts);
+  const agentPromptBox = generateAgentPromptBox(inlineSuggestions, findingCounts);
+  const filesAnalyzed = extractChangedFilesFromDiff(truncatedDiff);
+  const reviewScopeBox = generateReviewScopeBox({
+    filesAnalyzed,
+    filesSkipped: skippedFiles,
+    registryGroundingUsed: !!packageGroundTruthNote,
+  });
+
   const markdownOutput = `## 🛡️ ReviewGround AI Code Review & Security Analysis
 *Reviewer Engine: ${engineString}*
 
-${cleanReviewText}${testCoverageSection}\n\n---\n*Generated automatically by [ReviewGround](https://github.com/arungupta1526/ReviewGround) (${engineString}).*${costFooter}
+${actionableHeader}
+
+${cleanReviewText}${testCoverageSection}${agentPromptBox}${reviewScopeBox}\n\n---\n*Generated automatically by [ReviewGround](https://github.com/arungupta1526/ReviewGround) (${engineString}).*${costFooter}
 `;
 
   // Output to console & step summary

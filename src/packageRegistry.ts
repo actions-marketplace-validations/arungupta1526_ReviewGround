@@ -38,7 +38,8 @@ async function verifyNpmPackage(name: string, version: string): Promise<Verified
   const base: VerifiedPackage = { name, requestedVersion: version, registry: 'npm', verified: false, note: '' };
   try {
     const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/${encodeURIComponent(version)}`, {
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(5000),
+      headers: { 'User-Agent': 'ReviewGround-CI-Reviewer/1.3.0' },
     });
     if (res.ok) {
       base.verified = true;
@@ -46,7 +47,8 @@ async function verifyNpmPackage(name: string, version: string): Promise<Verified
       return base;
     }
     const latestRes = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/latest`, {
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(5000),
+      headers: { 'User-Agent': 'ReviewGround-CI-Reviewer/1.3.0' },
     });
     if (latestRes.ok) {
       const info = (await latestRes.json()) as { version?: string };

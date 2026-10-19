@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert';
 import { ProviderManager, detectProviderFromModel } from '../src/providers/index.js';
 import { GeminiProvider } from '../src/providers/gemini.js';
@@ -9,7 +9,37 @@ import { DeepSeekProvider } from '../src/providers/deepseek.js';
 import { OpenRouterProvider } from '../src/providers/openrouter.js';
 import { CustomProvider } from '../src/providers/custom.js';
 
+// Providers fall back to these env vars when no key is passed, so a key exported in the
+// developer's shell (e.g. GROQ_API_KEY) would otherwise leak into the chain assertions below.
+const PROVIDER_ENV_VARS = [
+  'GEMINI_API_KEY',
+  'OPENAI_API_KEY',
+  'ANTHROPIC_API_KEY',
+  'GROQ_API_KEY',
+  'DEEPSEEK_API_KEY',
+  'OPENROUTER_API_KEY',
+  'LLM_BASE_URL',
+  'LLM_API_KEY',
+  'PROVIDER',
+];
+
 describe('Multi-Provider BYOK Engine', () => {
+  const savedEnv: Record<string, string | undefined> = {};
+
+  before(() => {
+    for (const key of PROVIDER_ENV_VARS) {
+      savedEnv[key] = process.env[key];
+      delete process.env[key];
+    }
+  });
+
+  after(() => {
+    for (const key of PROVIDER_ENV_VARS) {
+      if (savedEnv[key] === undefined) delete process.env[key];
+      else process.env[key] = savedEnv[key];
+    }
+  });
+
   it('correctly reports isConfigured() based on API keys', () => {
     const emptyGemini = new GeminiProvider('');
     assert.strictEqual(emptyGemini.isConfigured(), false);

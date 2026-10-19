@@ -121,7 +121,7 @@ jobs:
   reviewground-self-verify:
     name: 🛡️ 5. ReviewGround Self-Verification
     needs: [gitleaks, security-audit, build, test]
-    if: always()
+    if: always() && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
