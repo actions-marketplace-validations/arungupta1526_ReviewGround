@@ -20261,7 +20261,8 @@ async function verifyNpmPackage(name, version2) {
   const base = { name, requestedVersion: version2, registry: "npm", verified: false, note: "" };
   try {
     const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/${encodeURIComponent(version2)}`, {
-      signal: AbortSignal.timeout(4e3)
+      signal: AbortSignal.timeout(5e3),
+      headers: { "User-Agent": "ReviewGround-CI-Reviewer/1.3.0" }
     });
     if (res.ok) {
       base.verified = true;
@@ -20269,7 +20270,8 @@ async function verifyNpmPackage(name, version2) {
       return base;
     }
     const latestRes = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/latest`, {
-      signal: AbortSignal.timeout(4e3)
+      signal: AbortSignal.timeout(5e3),
+      headers: { "User-Agent": "ReviewGround-CI-Reviewer/1.3.0" }
     });
     if (latestRes.ok) {
       const info = await latestRes.json();
@@ -21370,6 +21372,85 @@ Existing Project Structure (Relevant Directories):
 ` + dirOutlines.join("\n") + `
 (Leverage existing utilities and modules shown above; avoid reinventing duplicate helper functions.)
 `;
+}
+
+// src/utils/actionableSummary.ts
+function extractFindingCounts(reviewText, inlineCount = 0) {
+  const blockers = (reviewText.match(/🚨\s*\*\*\[BLOCKER\]\*\*/gi) || []).length;
+  const warnings = (reviewText.match(/⚠️\s*\*\*\[WARNING\]\*\*/gi) || []).length;
+  return {
+    blockers,
+    warnings,
+    suggestions: inlineCount
+  };
+}
+function generateActionableHeader(counts) {
+  const parts = [];
+  if (counts.blockers > 0) {
+    parts.push(`\u{1F6A8} **${counts.blockers} Blocker${counts.blockers > 1 ? "s" : ""}**`);
+  }
+  if (counts.warnings > 0) {
+    parts.push(`\u26A0\uFE0F **${counts.warnings} Warning${counts.warnings > 1 ? "s" : ""}**`);
+  }
+  if (counts.suggestions > 0) {
+    parts.push(`\u{1F4A1} **${counts.suggestions} Committable Suggestion${counts.suggestions > 1 ? "s" : ""}**`);
+  }
+  if (parts.length === 0) {
+    return `> \u2705 **All checks passed** \xB7 No blocker or warning issues detected \xB7 Changes look clean!`;
+  }
+  return `> ${parts.join(" \xB7 ")} \xB7 \u{1F4AC} Reply \`@reviewground fix\` to auto-patch`;
+}
+function generateAgentPromptBox(inlineSuggestions, counts) {
+  if (inlineSuggestions.length === 0 && counts.blockers === 0 && counts.warnings === 0) {
+    return "";
+  }
+  const items = inlineSuggestions.map(
+    (s, idx) => `${idx + 1}. In \`${s.path}\` line ${s.line}:
+Apply fix:
+\`\`\`
+${s.suggestion.trim()}
+\`\`\``
+  ).join("\n\n");
+  const content = items ? `ReviewGround detected actionable issues on this PR. Please apply the following code fixes:
+
+${items}
+
+Keep modifications minimal, adhere to AGENTS.md conventions, and run tests.` : `ReviewGround flagged ${counts.blockers} blocker(s) and ${counts.warnings} warning(s) on this PR. Please review the findings above, resolve the root cause, and verify with tests.`;
+  return `
+
+<details>
+<summary>\u{1F916} Prompt for AI Coding Agents (Antigravity / Cursor / Claude)</summary>
+
+\`\`\`
+${content}
+\`\`\`
+
+</details>`;
+}
+function generateReviewScopeBox(options) {
+  const bullets = [];
+  if (options.filesAnalyzed && options.filesAnalyzed.length > 0) {
+    const list = options.filesAnalyzed.slice(0, 8).map((f) => `\`${f}\``).join(", ");
+    const more = options.filesAnalyzed.length > 8 ? ` *(+${options.filesAnalyzed.length - 8} more)*` : "";
+    bullets.push(`* **Files Analyzed (P0/P1):** ${list}${more}`);
+  }
+  if (options.filesSkipped && options.filesSkipped.length > 0) {
+    const list = options.filesSkipped.slice(0, 8).map((f) => `\`${f}\``).join(", ");
+    const more = options.filesSkipped.length > 8 ? ` *(+${options.filesSkipped.length - 8} more)*` : "";
+    bullets.push(`* **Files Budget-Skipped (P2/Lockfiles):** ${list}${more}`);
+  }
+  if (options.registryGroundingUsed) {
+    bullets.push(`* **Registry Verification:** Live npm / PyPI registry grounding verified`);
+  }
+  if (bullets.length === 0) return "";
+  return `
+
+<details>
+<summary>\u2139\uFE0F Review Scope & File Distribution</summary>
+
+${bullets.join("\n")}
+
+</details>`;
 }
 
 // src/github/comments.ts
@@ -41343,10 +41424,22 @@ async function postInlineSuggestions(suggestions, token, repo, prNumber) {
         continue;
       }
       const sanitizedSuggestion = item.suggestion.replace(/```/g, "\\`\\`\\`");
+      const agentPrompt = `<details>
+<summary>\u{1F916} Prompt for AI Agents</summary>
+
+\`\`\`
+Review comment at @${item.path} line ${item.line}:
+Apply the following code change:
+${item.suggestion.trimEnd()}
+\`\`\`
+
+</details>`;
       const body = `### \u{1F916} ReviewGround 1-Click Code Suggestion
 \`\`\`suggestion
 ${sanitizedSuggestion.trimEnd()}
-\`\`\``;
+\`\`\`
+
+${agentPrompt}`;
       const postRes = await fetch(`https://api.github.com/repos/${repo}/pulls/${prNumber}/comments`, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
@@ -41830,9 +41923,11 @@ ${registryResult.notes.map((n) => `- ${n}`).join("\n")}
     }
   }
   let truncatedDiff;
+  let skippedFiles = [];
   if (config2.enableSmartDiffPriority !== false && diff.length > 28e3) {
     const priorityResult = packPrioritizedDiff(diff, 28e3);
     truncatedDiff = priorityResult.packedDiff;
+    skippedFiles = priorityResult.skippedFiles;
     console.log(priorityResult.priorityLog);
     if (priorityResult.skippedFiles.length > 0) {
       console.log(`\u{1F5C2}\uFE0F Skipped files (low priority or budget): ${priorityResult.skippedFiles.slice(0, 10).join(", ")}${priorityResult.skippedFiles.length > 10 ? "..." : ""}`);
@@ -41942,10 +42037,21 @@ ${coverageReport.suggestedTests}`;
     runId: config2.runId || process.env.GITHUB_RUN_ID,
     previousHistory
   }) : "";
+  const findingCounts = extractFindingCounts(cleanReviewText, inlineSuggestions.length);
+  const actionableHeader = generateActionableHeader(findingCounts);
+  const agentPromptBox = generateAgentPromptBox(inlineSuggestions, findingCounts);
+  const filesAnalyzed = extractChangedFilesFromDiff(truncatedDiff);
+  const reviewScopeBox = generateReviewScopeBox({
+    filesAnalyzed,
+    filesSkipped: skippedFiles,
+    registryGroundingUsed: !!packageGroundTruthNote
+  });
   const markdownOutput = `## \u{1F6E1}\uFE0F ReviewGround AI Code Review & Security Analysis
 *Reviewer Engine: ${engineString}*
 
-${cleanReviewText}${testCoverageSection}
+${actionableHeader}
+
+${cleanReviewText}${testCoverageSection}${agentPromptBox}${reviewScopeBox}
 
 ---
 *Generated automatically by [ReviewGround](https://github.com/arungupta1526/ReviewGround) (${engineString}).*${costFooter}

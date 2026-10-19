@@ -246,7 +246,8 @@ export async function postInlineSuggestions(
       }
 
       const sanitizedSuggestion = item.suggestion.replace(/```/g, '\\`\\`\\`');
-      const body = `### 🤖 ReviewGround 1-Click Code Suggestion\n\`\`\`suggestion\n${sanitizedSuggestion.trimEnd()}\n\`\`\``;
+      const agentPrompt = `<details>\n<summary>🤖 Prompt for AI Agents</summary>\n\n\`\`\`\nReview comment at @${item.path} line ${item.line}:\nApply the following code change:\n${item.suggestion.trimEnd()}\n\`\`\`\n\n</details>`;
+      const body = `### 🤖 ReviewGround 1-Click Code Suggestion\n\`\`\`suggestion\n${sanitizedSuggestion.trimEnd()}\n\`\`\`\n\n${agentPrompt}`;
 
       const postRes = await fetch(`https://api.github.com/repos/${repo}/pulls/${prNumber}/comments`, {
         method: 'POST',
